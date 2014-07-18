@@ -13,10 +13,6 @@ module.exports = {
         var cid = cookie.get("rapid-client-id");
         var tokens = rapid._csrf[cid] || [];
 
-        console.log("\n");
-     	console.log("_csrf tokens:", cid, tokens);
-     	console.log("\n");
-
         //默认从3个地方找token
 		//1.check query
         //2.check headers' x-csrf-token || x-csrf-token
@@ -28,7 +24,7 @@ module.exports = {
 
         //3.check form req.body
 		this.parseForm(function(err,params){
-			console.log("forms", params);
+
 			if(params && params.csrfToken && tokens.indexOf(params.csrfToken) >= 0){
 				this.next();
 			} else{
