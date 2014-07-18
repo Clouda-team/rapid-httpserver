@@ -3,6 +3,7 @@ module.exports = {
         
         var req = this.request;
         var res = this.response;
+        var idx;
 
         //ignore other methods
         if(req.method.toLowerCase() !== "post"){
@@ -18,6 +19,8 @@ module.exports = {
         //2.check headers' x-csrf-token || x-csrf-token
         var reqToken = this.url("?csrfToken", req.url) || req.headers['x-csrf-token'] || req.headers['x-csrf-token'];
         if(reqToken && tokens.indexOf(reqToken) >= 0){
+            idx = tokens.indexOf(reqToken);
+            tokens.splice(idx, 1);
         	this.next();
         	return ;
         }
@@ -26,7 +29,9 @@ module.exports = {
 		this.parseForm(function(err,params){
 
 			if(params && params.csrfToken && tokens.indexOf(params.csrfToken) >= 0){
-				this.next();
+				idx = tokens.indexOf(params.csrfToken);
+                tokens.splice(idx, 1);
+                this.next();
 			} else{
 				this.sendContent("Forbiden", 403);
 			}
