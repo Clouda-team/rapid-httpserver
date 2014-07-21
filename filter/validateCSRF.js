@@ -16,8 +16,8 @@ module.exports = {
 
         //默认从3个地方找token
 		//1.check query
-        //2.check headers' x-csrf-token || x-csrf-token
-        var reqToken = this.url("?csrfToken", req.url) || req.headers['x-csrf-token'] || req.headers['x-csrf-token'];
+        //2.check headers' x-csrf-token || x-xsrf-token
+        var reqToken = this.url("?csrfToken", req.url) || req.headers['x-csrf-token'] || req.headers['x-xsrf-token'];
         if(reqToken && tokens.indexOf(reqToken) >= 0){
             idx = tokens.indexOf(reqToken);
             tokens.splice(idx, 1);
@@ -33,7 +33,7 @@ module.exports = {
                 tokens.splice(idx, 1);
                 this.next();
 			} else{
-				this.sendContent("Forbiden", 403);
+				this.sendContent("Forbiden, CSRF validate failed.", 403);
 			}
 		});
 
