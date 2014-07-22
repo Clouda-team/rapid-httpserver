@@ -3,6 +3,7 @@
  */
 var fs = require('fs');
 var path = require('path');
+var Domain = require('domain');
 var inspect = require("util").inspect;
 var _extend = require("util")._extend;
 var urlParse = require('url').parse;
@@ -26,6 +27,9 @@ var ActionVisitor = function(req,res,engine){
 	if(!req || !res){
 		throw new Error("missing arguments");
 	}
+	var me = this;
+	
+	EventEmitter.call(me);
 	
 	this.cachedExt = {};
 	this.__tplEngine = engine;
@@ -49,9 +53,24 @@ var ActionVisitor = function(req,res,engine){
 		}
 	});
 	
+	 // 错误派发;
+    var domain = Domain.create();
+    
+    domain.add(me);
+    domain.add(req);
+    domain.add(res);
+    
+    
+    var errorHandle = function(err){
+    	log.err(err.stack);
+    	me.sendError(err,500);
+    };
+    
+    domain.on("error",errorHandle);
+    me.on("error",errorHandle);
 }
 
-ActionVisitor.prototype = {
+ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	__destroy:function(){
 		
 		delete this.response;
@@ -301,16 +320,13 @@ ActionVisitor.prototype = {
 	sendError:function(err,statusCode){
 		
 		statusCode = statusCode || 500;
-		var mapping = rapid.config['rapid-httpserver'].mapping;	
-		var act = mapping[mapping.length - 1];
 		
-		if(typeof act === 'function'){
-			act.call(this);
-		} else if(typeof act === 'string'){
-			this.forward(act);
-		} else {
-			this.sendStatus(statusCode || 500, err.message || "Server Error", err.stack);		
-		}
+		this.forward("error",{
+			httpStatus : statusCode,
+			errorCode : err.code,
+			errorMsg : err.message,
+			errorStack : err.stack
+		});
 	},
 	/**
 	 * 将一个内容发送到前端
@@ -534,7 +550,7 @@ ActionVisitor.prototype = {
 	 */
 	forward:function(actionName,params){
 
-		this.conf = params;
+		this.params = params;
 		var action = rapid.plugin["rapid-httpserver"].__findActionByName(actionName);
 		
 		if(action){
@@ -575,6 +591,6 @@ ActionVisitor.prototype = {
     url : function(args, url){
     	return uri.apply(this, arguments);
     }
-}
+});
 
 module.exports = ActionVisitor;

@@ -18,19 +18,14 @@ var tplEngine = require("./libs/views");
 
 var isArray = Array.isArray;
 
-var server = false , httpd = null , conf = {mapping:[], filter:[]} , appName = "";
-
+var server = false , httpd = null , port , conf = {mapping:[], filter:[]} , appName = "";
 
 /**
  * 以下在一个为组织定义的action,extension,filter的原始工厂方法的三个map对像.
  */
 var actions = {}, extensions = {} , filters = {} , services = [];
 
-
-var mappingChain = [];
-var filterChain = [];
-
-var port;
+var mappingChain = [] , filterChain = [];
 
 var getReqPath = function(url){
 	return urlParse(url).pathname;
@@ -54,19 +49,21 @@ var superActions = function (req, res) {
     if(dispatchServices(req,res)){
     	return;
     }
-    
-    //debugger;
     var visitor = new ActionVisitor(req,res,tplEngine);
+    
+    // 错误派发;
+    var domain = visitor.domain;
     
     // addition
     visitor.req_pathname = getReqPath(req.url);
     
     visitor.__filterIndex = 0;
     
-    visitor.next = function(){
+    visitor.next = domain.bind(function(){
     	try{
+    		var me = this;
     		var exec;
-    		var item = filterChain[this.__filterIndex];
+    		var item = filterChain[me.__filterIndex];
     		if(item){
     			// 处理filter延迟载入
     			if(item instanceof Function){
@@ -74,12 +71,10 @@ var superActions = function (req, res) {
     			}else{
     				exec = buildFilterHandle(item);
     				if(exec instanceof Function){
-    					filterChain[this.__filterIndex] = exec;
+    					filterChain[me.__filterIndex] = exec;
     				}else{
     					exec = (function(url,name){
-							
 							url = wildcardToReg(url);
-							
 							// 还是找不到action定义, 向客户端返回错误
 							return function(req){
 								if(url.test(this.req_pathname)){
@@ -92,12 +87,10 @@ var superActions = function (req, res) {
     				}
     			}
     			this.__filterIndex++;
-    			exec.call(this,this.request,this.response);
+				exec.call(me,me.request,me.response);
     		}else{
-    			delete this.next;
-    			delete this.__filterIndex
-    			
-    			var me = this;
+    			delete me.next;
+    			delete me.__filterIndex
     			
     			var checked = mappingChain.some(function(item,index,chain){
     				var exec;
@@ -132,8 +125,15 @@ var superActions = function (req, res) {
     					}
     				}
     				
-    				return exec.call(me,req,res);
-    				
+    				try{
+    					// 这里单独try一次, 是为了中断actionChain的处理操作. 
+    					// 其它地方的错误,将直接被更外层的try抓到.
+    					return exec.call(me,req,res);
+    				}catch(err){
+    					domain.emit('error',err);
+    					// 派发错误并确保不再执行其它的action.
+    					return true;
+    				}
     			});
     			
     			// checked == false的时候,表示请求未被处理
@@ -141,12 +141,11 @@ var superActions = function (req, res) {
     				throw new Error("Unhandle Exception :unfinished request , because no action cat process the request [%s] , check the conf.mapping." , req.url);
     			}
     		}
-    		
-    	}catch(e){
-    		this.sendError(e);
-    		log.err(e.stack);
+    	}catch(err){
+    		// 派发非action中的错误, 并将log输出到日志;
+    		domain.emit('error',err);
     	}
-    };
+    });
     
     visitor.next();
     
