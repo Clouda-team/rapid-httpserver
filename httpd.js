@@ -34,7 +34,15 @@ var getReqPath = function(url){
 var dispatchServices = function(req,res,head){
 	//dispatch services
     if(services.some(function(handle){
-    	return handle(req,res,head);
+    	try{
+    		return handle(req,res,head);
+    	}catch(e){
+    		log.err(e.stack);
+    		res.statusCode = 500;
+    		res.end(e.stack);
+    		// 遇到crash不再继续;
+    		return true;
+    	}
     })){
     	// process by service, return.
     	return true;
@@ -49,6 +57,7 @@ var superActions = function (req, res) {
     if(dispatchServices(req,res)){
     	return;
     }
+    
     var visitor = new ActionVisitor(req,res,tplEngine);
     
     // 错误派发;
