@@ -425,7 +425,7 @@ var buildFilterHandle = function(item){
 	var exec = filters[name];
 	
 	if(!exec){
-		log.info("can not find filter [%s], try again at request event", name);
+		log.info("waiting filter [%s], try again at request event", name);
 		//需要在执行时重新检测filter是否存在, 慢速处理
 		return item;
 	}else{
@@ -534,7 +534,7 @@ var buildActionHandle = function(item){
     	/**
     	 * 解决action载入延迟, 即配置中存在,但action尚未载入的问题.
     	 */
-    	log.info("can not find action [%s], try again at request event", value);
+    	log.info("waiting action [%s], try again at request event", value);
     	return item;
     }
     
