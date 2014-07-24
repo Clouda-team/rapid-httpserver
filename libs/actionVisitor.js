@@ -582,7 +582,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
     },
 
     renderStr: function(tpl, data, opts){
-    	return this.__tplEngine.render(tpl, data, opts);
+    	return this.__tplEngine.renderStr(tpl, data, opts);
     },
 
     lookup: function(url){
