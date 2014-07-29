@@ -1,6 +1,6 @@
 {
   "name": "rapid-httpserver",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "httpserver plugin of rapid",
   "main": "httpd.js",
   "scripts": {
