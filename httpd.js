@@ -478,7 +478,7 @@ var buildActionHandle = function(item){
 	 * 两种模式，通配符或正则，除非直接给正则，否则一概认为是字符串通配符.
 	 * 最终保证url一定为正则对像
 	 */
-	var url = item.url ? wildcardToReg(item.url) : {test:function(){return true;}};
+	var url = item.url ? wildcardToReg(item.url) : {test:function(){return true;},exec:function(str){return [str]}};
 	
 	// 在此以后都使用处理过的url.
 	item.url = url;
@@ -703,6 +703,16 @@ httpd = _extend(new EventEmitter(),{
 	    },
 	    __findActionByName:function(name){
 	    	return actions[name];
+	    },
+	    // 必个短名称的快捷方式, 直接调用 defineXXXXXX.
+	    action:function(){
+	    	this.defineAction.call(this,arguments);
+	    },
+	    filter:function(){
+	    	this.defineFilter.call(this,arguments);
+	    },
+	    extension:function(){
+	    	this.defineExtension.call(this,arguments);
 	    }
 });
 
