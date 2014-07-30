@@ -38,9 +38,9 @@ rapid-core : rapid 运行时支撑;
 
 每个请求到达时，将根据配置依次通过fiterChain与actionChain两条执行链，每个请求根据配置（路由）的URL完整的经过fiterChain中配置的所有filter并到达actionChain，在actionChain的执行中，在任意配置的action被执行时，将停止继续执行下一个。如果所有都不配置，则执行defaultAction，默认返回404错误给客户端。
 
-##[Get Started](http://cloudaplus.duapp.com/rapid/introduction/get_started)
+## 使用手册
 
-## [API Docuemt](http://cloudaplus.duapp.com/rapid/httpserver/api_document)
-
-##[To Learn More](http://cloudaplus.duapp.com/)
+* [Get Started](http://cloudaplus.duapp.com/rapid/introduction/get_started)
+* [API Docuemt](http://cloudaplus.duapp.com/rapid/httpserver/api_document)
+* [To Learn More](http://cloudaplus.duapp.com/)
 
