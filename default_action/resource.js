@@ -29,7 +29,7 @@ var makePath = function(pattern,dstpath,url){
 	// 处理默认替换标记.
 	dstpath = dstpath.replace(/\*/m,"{1}");
 	
-	log.dev("make path: ", pattern,dstpath,url);
+	log.dev("Resource : make path: ", pattern,dstpath,url);
 	
 	// 不含可替换部份,直接返回,否则解析url进行替换.
     if(partReg.test(dstpath)){
