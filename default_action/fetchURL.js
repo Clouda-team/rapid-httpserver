@@ -44,7 +44,7 @@ var makePath = function(pattern,dstpath,url){
 
 
 module.exports = function(){
-	
+	var me = this;
 	var req, res, params;
 	var urlPattern, reqPath, dstPath, fullPath;
 	var headers , host ; 
@@ -78,30 +78,40 @@ module.exports = function(){
 	opts.headers["x-Forwarded-Host"] = opts.headers.host;
 	
 	// 干掉不应该被转发的headers
-	delete opts.headers["connection"];
+	var ignoreHeader = ["host","connection"];
+	
+	ignoreHeader.forEach(function(key){
+	    delete opts.headers[key];
+	});
 	
 	if(params.headers){
 		// 配置中设置的优先;
 		for(var key in params.headers){
-			opts.headers[key] = params.headers[key];
+		    if(ignoreHeader.indexOf(key) == -1){
+		        opts.headers[key] = params.headers[key];
+		    }
 		}
 	}
 	
+	var senddown = function(proxyRes){
+	    me.setHeader(proxyRes.headers);
+	    proxyRes.pipe(res);
+	};
+	
 	var proxyReq = null;
+	debugger;
+	proxyReq = http.request(opts,senddown);
+	
 	switch(opts.method){
-		case "GET" :
-			proxyReq = http.request(opt,function(){
-				
-			});
-		case "POST" :
-			
+	    case "GET" :
+	        proxyReq.end();
+	        break;
+	    case "POST" :
+			req.pipe(proxyReq);
 			break;
 		default:
 			throw new Error("Unsupport Mehtods :  " + opts.method + "  " + req.url);
 	}
-
 	
-	
-	this.send(JSON.stringify(opts));
-	
+	//this.send(JSON.stringify(opts));
 }
