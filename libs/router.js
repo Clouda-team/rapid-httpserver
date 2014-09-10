@@ -4,7 +4,6 @@
  * @author wangsu01@baidu.com
  * @file router.js
  */
-
 var format = require("util").format;
 var inherits = require("util").inherits;
 var _extend = require("util")._extend;
@@ -27,6 +26,28 @@ var tplEngine = require("./views");
 var isArray = Array.isArray;
 
 var actions = {}, filters = {}, extensions = {};
+
+
+var joinPath = function(){
+    var args = Array.prototype.slice.call(arguments,0);
+    var rv = args.join("/");
+    var clear = /\/+/g;
+    return rv.replace(clear,"/");
+}
+
+var makeStartWith = function(str,withStr){
+    if(str.indexOf(withStr) === 0 ){
+        return str;
+    }
+    return withStr + str;
+};
+
+var makeEndWith = function(str,withStr){
+    if(str.lastIndexOf(withStr) === 0 ){
+        return str;
+    }
+    return str + withStr;
+};
 
 /**
  * 包装action与filter的原始方法,使所有可执行的内容具有统一的调用接口
@@ -155,7 +176,6 @@ var buildActionHandle = function(item){
         params.url = value;
     }
     
-    
     return {
         url : url,
         exec : handle,
@@ -227,49 +247,6 @@ Router.prototype = {
     __findActionByName:function(name){
         return actions[name];
     },
-    /**
-     * 折分url中的path部份.同时 
-     * 
-     * @param pathname
-     * @param parents_perfix
-     * @returns
-     */
-    __splitPath:function(pathname, parents_perfix){
-        parents_perfix = parents_perfix || "/";
-        
-        /**
-         * 处理前缀.
-         * 每个前缀认为是一级路径,即以 / 结尾,
-         *  传入的parents_perfix是每一级父节点中已匹配的前缀拼接后的前缀路径
-         */
-        if(! this.endWith.test(parents_perfix)){
-            parents_perfix += "/";
-        }
-        
-        if(restPath.indexOf(parents_perfix) == 0){
-            restPath = restPath.substr(parents_perfix.length - 1);
-            
-            if(restPath.indexOf(this._perfix) == 0){
-                return {
-                    restPath : restPath,
-                    matchPath : path.join(parents_perfix,this._perfix,"/"),
-                };
-            }
-        }
-        
-        return false;
-    },
-    /*
-     * 错误派发.
-     * 先尝试派发到当前router,如果没有error处理的action,则派发到上一级,一直到root为止,保证错误被处理.
-     */
-    dispatchError:function(err,context){
-        if(this.error){
-            this.error.call(context,err);
-        }else{
-            this.parent.dispatchError(err,context);
-        }
-    },
     // 派发请求
     dispatch : function(context,pathInfo,isReverse){
         //debugger;
@@ -278,9 +255,9 @@ Router.prototype = {
         var res = context.response;
         var domain = context.domain;
         var execFilter = [];
-        
-        var restPart = path.join("/", pathInfo.rest);
-        var parentMath =  path.join(pathInfo.parentMatch,"/");
+
+        var restPart = makeStartWith(pathInfo.rest,"/");
+        var parentMath = makeEndWith(pathInfo.parentMatch,"/");
         
         context.currentRouter = me;
         
@@ -299,9 +276,12 @@ Router.prototype = {
             var subRestPath = null;
             
             if(restPart.indexOf(perfix) == 0){
-                
-                subPathInfo.parentMatch = path.join(parentMath,perfix,"/");
+                // 处理向子路由派发时的路径信息
+                //parentMath,所有父级已匹配到的路径.
+                subPathInfo.parentMatch = joinPath(parentMath,perfix,"/");
+                // 整个请求路径中, 未被匹配的部份
                 subPathInfo.rest = restPart.substr(perfix.length - 1);
+                // 子路由自己在上一级路由中被配置的前缀
                 subPathInfo.matchPerfix = perfix;
                 
                 setImmediate(function(subRouter,context,subPathInfo){
@@ -501,7 +481,7 @@ Router.prototype = {
         sub.parent = this;
         
         var item = {
-            perfix:path.join(perfix,"/"),   // 只配置整级路径,即最后一个字符必须是 / ;
+            perfix:matkEndWith(perfix,"/"),   // 只配置整级路径,即最后一个字符必须是 / ;
             router:sub
         };
         

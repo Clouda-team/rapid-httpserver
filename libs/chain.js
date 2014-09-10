@@ -45,73 +45,80 @@ var Chain = function(execItems,async){
     if(this.__async){
         // 异步
         this.next =  (function(me){
+            
             return function(_args,bind,__fromInternal){
-                var exec,args = null;
                 me.processing = true;
-                if(exec = this.__execs[this.index++]){
-                    
-                    // 内部调起,不再添加callbakc
-                    if(!__fromInternal){
-                        args = Array.isArray(_args) ? _args.slice(0) : [_args];
-                        var cb_async = (function(me,args,bind){
-                            return function(err){
-                                if(err){
-                                    me.emit("error",err);
-                                }else{
-                                    me.next(args,bind,true);
-                                }
-                            };
-                        })(me,args,bind);
-                        args.push(cb_async);
-                    }else{
-                        args = _args;
-                    }
-                    
-                    setImmediate(function(exec,args,bind){
-                        try{
-                            exec.apply(bind,args);
-                        }catch(e){
-                            me.emit("error",e);
-                        }
-                    },exec,args,bind);
-                    
-                }else{
-                    me.emit("finish");
-                }
                 
+                setImmediate(function(){
+                    var exec,args = null;
+                    if(exec = me.__execs[this.index++]){
+                        // 内部调起,不再添加callbakc
+                        if(!__fromInternal){
+                            args = Array.isArray(_args) ? _args.slice(0) : [_args];
+                            var cb_async = (function(me,args,bind){
+                                return function(err,isfinish){
+                                    if(err){
+                                        me.emit("error",err);
+                                    }else if(isfinish){
+                                        me.emit("finish");
+                                    }else{
+                                        me.next(args,bind,true);
+                                    }
+                                };
+                            })(me,args,bind);
+                            args.push(cb_async);
+                        }else{
+                            args = _args;
+                        }
+                        
+                        setImmediate(function(exec,args,bind){
+                            try{
+                                exec.apply(bind,args);
+                            }catch(e){
+                                me.emit("error",e);
+                            }
+                        },exec,args,bind);
+                    }else{
+                        me.emit("finish");
+                    }
+                });
                 return me;
             };
         })(this);
+        
     }else{
         // 同步
         this.next =  (function(me){
             return function(_args,bind){
                 me.processing = true;
-                var exec, args = Array.isArray(_args) ? _args : [_args];
-                if(exec = this.__execs[this.index++]){
-                    // 增加回调
-                    setImmediate(function(exec,args,bind){
-                        try{
-                            exec.apply(bind,args);
-                            me.next(_args,bind);
-                        }catch(e){
-                            me.emit("error",e);
-                        }
-                    },exec,args,bind);
-                    
-                }else{
-                    me.emit("finish");
-                }
+                setImmediate(function(){
+                    var exec, args = Array.isArray(_args) ? _args : [_args];
+                    if(exec = me.__execs[me.index++]){
+                        // 增加回调
+                        setImmediate(function(exec,args,bind){
+                            try{
+                                exec.apply(bind,args);
+                                me.next(_args,bind);
+                            }catch(e){
+                                me.emit("error",e);
+                            }
+                        },exec,args,bind);
+                        
+                    }else{
+                        me.emit("finish");
+                    }
+                });
                 return me;
             };
         })(this);
-    }
-    this.on("finish",function(){
-        //console.log("finish");
-        setImmediate(function(me){
-            me.destroy();
-        },this);
-    });
+    };
+    
+//    this.on("finish",function(){
+//        //console.log("finish");
+//        setImmediate(function(me){
+//            //me.destroy();
+//        },this);
+//    });
     
     /**
      * 错误自动销毁动作, 
@@ -119,7 +126,7 @@ var Chain = function(execItems,async){
      */
     this.on("error",function(err){
         //console.log("trying to destroy");
-        this.hasError = true;
+        this.hasError = err;
         this.processing = false;
         
         /*
@@ -127,8 +134,9 @@ var Chain = function(execItems,async){
          * after that to call the 'destroy', if no call the 'next';
          */
         setImmediate(function(me){
-            if(me.hasError == true && me.processing == false){
-                me.destroy();
+            if(me.hasError && me.processing == false){
+                // 通知完成,如果因为错误停止,携带错误对像;
+                me.emit("finish",me.hasError);
             }
         },this);
         
@@ -136,6 +144,7 @@ var Chain = function(execItems,async){
          *  if only this one handle the error , 
          *  throw the error to the parent domain;
          */
+        // && this.listeners("finish").length == 1
         if(this.listeners("error").length == 1){
             throw err;
         }
@@ -143,6 +152,8 @@ var Chain = function(execItems,async){
 };
 
 Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
+    ASYNC:true,
+    SYNC:false,
     /**
      * 表示完成,
      */
@@ -158,7 +169,7 @@ Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
         return this;
     },
     destroy:function(){
-        // console.log("destroy");
+        //console.log("destroy");
         this.__execs.length = 0;
         this.removeAllListeners('error');
         this.removeAllListeners('finish');

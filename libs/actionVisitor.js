@@ -13,7 +13,12 @@ var mime = require("./mime");
 var zlib = require('zlib');
 var EventEmitter = require("events").EventEmitter;
 var stream = require("stream");
-var uri = require("./uri"); 
+var uri = require("./uri");
+
+var getReqPath = function(url){
+    return urlParse(url).pathname;
+}
+
 /**
  * action的访问对像, 将做为在action中访问到的this对像出现.
  * 
@@ -33,6 +38,7 @@ var ActionVisitor = function(req,res,engine){
 	
 	this.cachedExt = {};
 	this.__tplEngine = engine;
+	this.currentRouter = null; //在router中被设置
 	
 	var cookie = null;
 	
@@ -53,6 +59,8 @@ var ActionVisitor = function(req,res,engine){
 		}
 	});
 	
+	this.req_pathname = getReqPath(req.url);
+	
 	 // 错误派发;
     var domain = Domain.create();
     
@@ -60,14 +68,16 @@ var ActionVisitor = function(req,res,engine){
     domain.add(req);
     domain.add(res);
     
-    
     var errorHandle = function(err){
-    	log.err(err.stack);
-    	me.sendError(err,500);
+        	log.err(err.stack);
+        	me.sendError(err,500);
     };
     
     domain.on("error",errorHandle);
     me.on("error",errorHandle);
+    res.on("finish",function(){
+        me.__destroy();
+    });
 }
 
 ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
@@ -551,7 +561,11 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	forward:function(actionName,params){
 
 		this.params = params;
-		var action = rapid.plugin["rapid-httpserver"].__findActionByName(actionName);
+		if(!this.currentRouter){
+		    throw new Error("do not have any router.");
+		}
+		
+		var action = this.currentRouter.__findActionByName(actionName);
 		
 		if(action){
 			log.dev("Forward to Action [%s].",actionName);

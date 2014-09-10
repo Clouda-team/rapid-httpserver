@@ -99,7 +99,7 @@ module.exports = function(){
 	};
 	
 	var proxyReq = null;
-	debugger;
+	//debugger;
 	proxyReq = http.request(opts,senddown);
 	
 	switch(opts.method){
