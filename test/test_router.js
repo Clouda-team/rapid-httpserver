@@ -105,7 +105,7 @@ function logProfile(prof){
 }
 
 console.log("before start");
-var httpd = false;
+var httpd = true;
 
 if(httpd == true){
     
@@ -158,7 +158,7 @@ if(httpd == true){
             // notify master about the request
             singleThread || process.send({ cmd: 'notifyRequest' });
         }).listen(8000,function(){
-            log.info("%s http server start runing, on port %d...", "UnitTest For Router", 8088);
+            log.info("%s http server start runing, on port %d...", "UnitTest For Router", 8000);
         });
     }
     
@@ -193,7 +193,11 @@ if(httpd == true){
             }
         });
         
-        var fakeContext = _extend(new ActionVisitor(fakeReq,fakeRes),{
+        var fakeContext = _extend(EventEmitter,{
+            request:fakeReq,
+            response:fakeRes,
+            req_pathname:fakeReq.url,
+            cachedExt:[],
             send:function(str){
                 this.response.send(str);
             }

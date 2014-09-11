@@ -47,7 +47,7 @@ var c1 = new Chain([tf,tf,tf,tf],true);     // test async
 var dm2 = Domain.create();
 var c2 = new Chain([tf_with_error,tf_with_error,tf_with_error,tf_with_error],false);    // test sync
 
-c2.next({i:-4}).whenFinish(function(){
+c2.next({i:-4}).whenFinish(function(err){
     console.log("all done!!");
 }).whenError(function(err){
     console.log("ok , i am process the error. don't tall the parent domain.");
@@ -58,5 +58,8 @@ var dm3 = Domain.create();
 var c3 = new Chain([tf_with_error,tf_with_error,tf_with_error,tf_with_error],false);    // test sync
 
 c3.next({i:-4}).whenFinish(function(err){
-    console.log("all done!! ", err.stack);
+    console.log("all done!! ", err && err.stack);
+}).whenError(function(err){
+    console.log("where is the error? ", err.stack);
+    this.next({i:100});
 });

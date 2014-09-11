@@ -73,7 +73,7 @@ var packingShell = function(depends,handle){
          * 这里需要将extensions中缺少depends中所需的项目视为Unhandle,
          */
         var unhandlMsg = false;
-        if(depends.every(function(name){
+        if(depends.length == 0 || depends.every(function(name){
             var value;
             
             // 优先从缓存中取值
@@ -193,13 +193,13 @@ var Router = function(opts){
         throw new Error("Invalid argument, opts don't have any executable item , need one of 'mapping','filter','defaultAction'");
     }
     
-    if(isArray(opts.filters)){
+    if(isArray(opts.filters) && opts.filters.length > 0){
         opts.filters.forEach(function(conf){
             this.filters.push(buildFilterHandle(conf));
         },this);
     }
     
-    if(isArray(opts.mapping)){
+    if(isArray(opts.mapping) && opts.mapping.length > 0){
         opts.mapping.forEach(function(conf){
             this.actions.push(buildActionHandle(conf));
         },this);
@@ -265,7 +265,7 @@ Router.prototype = {
          * 回派给parent时才回到上级的action链上继续处理,这种情况下
          * 除非配置了match url的action,否则一般直接进入defaultAction.
          */
-        var sub_dispatch = domain.bind(function(sub){
+        var sub_dispatch = me.subs.length == 0 ? false : domain.bind(function(sub){
             var perfix = sub.perfix;
             var sub = sub.router;
             
@@ -292,7 +292,7 @@ Router.prototype = {
             return false;
         });
         
-        var filters_dispatch = function(fitem,index,fullArr){
+        var filters_dispatch = me.filters.length == 0 ? false : function(fitem,index,fullArr){
             var rv = true;
             var url = fitem.url;
             var execname, exec;
@@ -384,7 +384,7 @@ Router.prototype = {
         // 派发actions及defaultAction;
         var runActions = function(){
             //debugger;
-            if(me.actions.some(actions_dispatch,context)){
+            if(me.actions.length > 0 && me.actions.some(actions_dispatch,context)){
                 // 被当前action中的某个处理.不再继续
                 return;
             }
@@ -421,7 +421,7 @@ Router.prototype = {
          * 
          */
         // forEach只是找取match这次请求的filter,但是并未执行
-        var dofilter = me.filters.every(filters_dispatch);
+        var dofilter = filters_dispatch ? me.filters.every(filters_dispatch) : true;
         
         /*
          * 如果dofilter为false的情况下,表示filters中存在不能
@@ -430,34 +430,48 @@ Router.prototype = {
          */
         if(dofilter){
             
-            // filter中存在异步处理,所以依赖执行链.
-            var fc = new Chain(execFilter,true);
-            
-            // fc不处理错误,出果出现不可控异常直接抛给context的domain;
-            domain.add(fc);
-            
-            // fc 结束后,才执行后续派发;
-            fc.next(context).whenFinish(function(err){
-                //debugger;
-                delete context.next;
-                delete context.finish;
+            if(execFilter.length > 0){
+                // filter中存在异步处理,所以依赖执行链.
+                var fc = new Chain(execFilter,true);
                 
-                if(err){
-                    // 错误直接抛出给content.
-                    domain.emit("error",err);
-                    return;
-                }
+                // fc不处理错误,出果出现不可控异常直接抛给context的domain;
+                domain.add(fc);
+                
+                // fc 结束后,才执行后续派发;
+                fc.next(context).whenFinish(function(err){
+                    //(function(err){
+                    //debugger;
+                    delete context.next;
+                    delete context.finish;
+                    
+                    if(err){
+                        // 错误直接抛出给content.
+                        domain.emit("error",err);
+                        return;
+                    }
+                    
+                    // 派发sub_router, subs为同步判断, 所以直接使用数组的some方法
+                    if(sub_dispatch && me.subs.some(sub_dispatch,context)){
+                        // 如果subs能构处理,则直接交给subs,并且不再继续.
+                        return true;
+                    }
+                    
+                    runActions();
+                    
+                    fc.destroy();
+                    //})();
+                });
+                
+            }else{
                 
                 // 派发sub_router, subs为同步判断, 所以直接使用数组的some方法
-                if(me.subs.some(sub_dispatch,context)){
+                if(sub_dispatch && me.subs.some(sub_dispatch,context)){
                     // 如果subs能构处理,则直接交给subs,并且不再继续.
                     return true;
                 }
                 
                 runActions();
-                
-                fc.destroy();
-            });
+            }
             
         }else{
             
