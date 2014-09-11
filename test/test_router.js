@@ -98,6 +98,7 @@ var def = new $({
 root.mount("/abc",abc);
 
 abc.mount("/def",def);
+
 var fs = require("fs");
 function logProfile(prof){
     fs.writeFileSync("prof_"+ Date.now() + ".cpuprofile",JSON.stringify(prof));
@@ -148,7 +149,7 @@ if(httpd == true){
                 console.err(err.stack);
                 this.sendError(err,500);
             })
-            
+            debugger;
             root.dispatch(context,{
                 parentMatch:"/",
                 matchPerfix:"/",
@@ -167,18 +168,19 @@ if(httpd == true){
     
     var url = [
                "/",
+               "/abc/",
                "/abc/1def/ghi/jkl?a=100&b=200",
                "/abc/def/ghi/jkl?a=100&b=200"
                ];
     
     var c = 0;
-    var max = 10000;
+    var max = 30000;
     console.time("t");
     profile.startProfiling("profile");
     for (var i=0;i <= max;i++){
         
         var fakeReq = _extend(new EventEmitter(),{
-            url:url[ ~~(Math.random() * 3) ]
+            url:url[ ~~(Math.random() * (url.length-1)) ]
         });
         
         var fakeRes = _extend(new EventEmitter(),{
@@ -193,7 +195,8 @@ if(httpd == true){
             }
         });
         
-        var fakeContext = _extend(EventEmitter,{
+        //var fakeContext = _extend(new EventEmitter(),{
+        var fakeContext = _extend(new ActionVisitor(fakeReq,fakeRes),{
             request:fakeReq,
             response:fakeRes,
             req_pathname:fakeReq.url,

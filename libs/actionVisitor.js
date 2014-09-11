@@ -47,22 +47,25 @@ var ActionVisitor = function(req,res,engine){
 	
 	EventEmitter.call(me);
 	
-	Object.defineProperties(this,{
-		request:{
-			configurable:true,
-			enumerable:false,
-			get: function(){
-				return req;
-			}
-		},
-		response:{
-			configurable:true,
-			enumerable:false,
-			get:function(){
-				return res;
-			}
-		}
-	});
+	this.request = req;
+	this.response = res;
+	
+//	Object.defineProperties(this,{
+//		request:{
+//			configurable:true,
+//			enumerable:false,
+//			get: function(){
+//				return req;
+//			}
+//		},
+//		response:{
+//			configurable:true,
+//			enumerable:false,
+//			get:function(){
+//				return res;
+//			}
+//		}
+//	});
 	
 	this.req_pathname = getReqPath(req.url);
 	

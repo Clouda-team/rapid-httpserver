@@ -278,14 +278,14 @@ Router.prototype = {
                 //parentMath,所有父级已匹配到的路径.
                 subPathInfo.parentMatch = joinPath(parentMath,perfix,"/");
                 // 整个请求路径中, 未被匹配的部份
-                subPathInfo.rest = restPart.substr(perfix.length - 1);
+                subPathInfo.rest = restPart.substr(perfix.length);
                 // 子路由自己在上一级路由中被配置的前缀
                 subPathInfo.matchPerfix = perfix;
                 
-                setImmediate(function(subRouter,context,subPathInfo){
+               // setImmediate(function(sub,context,subPathInfo){
                     log.dev("dispathc : %s", subPathInfo.rest);
-                    subRouter.dispatch(context,subPathInfo);
-                }, sub,context,subPathInfo);
+                    sub.dispatch(context,subPathInfo);
+                //}, sub,context,subPathInfo);
                 
                 return true;
             }
