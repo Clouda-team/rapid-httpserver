@@ -16,8 +16,14 @@ var stream = require("stream");
 var uri = require("./uri");
 
 var getReqPath = function(url){
-    return urlParse(url).pathname;
-}
+    var i = url.length;
+    if((i=url.indexOf("?")) != -1){
+        return url.substring(0,i);
+    }else if((i = url.indexOf("#")) != -1){
+        return url.substring(0,i);
+    }
+    return url;
+};
 
 /**
  * action的访问对像, 将做为在action中访问到的this对像出现.
@@ -32,15 +38,14 @@ var ActionVisitor = function(req,res,engine){
 	if(!req || !res){
 		throw new Error("missing arguments");
 	}
-	var me = this;
 	
-	EventEmitter.call(me);
+	var me = this , cookie = null;
 	
 	this.cachedExt = {};
 	this.__tplEngine = engine;
 	this.currentRouter = null; //在router中被设置
 	
-	var cookie = null;
+	EventEmitter.call(me);
 	
 	Object.defineProperties(this,{
 		request:{

@@ -251,8 +251,6 @@ Router.prototype = {
     dispatch : function(context,pathInfo,isReverse){
         //debugger;
         var me = this;
-        var req = context.request;
-        var res = context.response;
         var domain = context.domain;
         var execFilter = [];
 
@@ -369,10 +367,10 @@ Router.prototype = {
                     aitem.exec = exec;
                 }
                 
-                this.urlPattern = url;
-                this.params = depcle(aitem.params);
+                context.urlPattern = url;
+                context.params = depcle(aitem.params);
                 
-                exec.call(this);
+                exec.call(context);
                 return true
             }
             
@@ -481,7 +479,7 @@ Router.prototype = {
         sub.parent = this;
         
         var item = {
-            perfix:matkEndWith(perfix,"/"),   // 只配置整级路径,即最后一个字符必须是 / ;
+            perfix:makeEndWith(perfix,"/"),   // 只配置整级路径,即最后一个字符必须是 / ;
             router:sub
         };
         
