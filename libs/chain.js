@@ -14,8 +14,7 @@ var Chain = function(execItems,async){
     
     EventEmitter.call(this);
     
-    var execs = [] , index = 0;
-    this.__execs = execs;
+    this.__execs;
     this.__async = !!async;
     this.index = 0;
     
@@ -29,124 +28,50 @@ var Chain = function(execItems,async){
      */
     if(!Array.isArray(execItems)){
         throw new Error("Invalid arguments, execItems must be an array");
-    }else if(!execItems.every(function(item,index,full){
-        if(item instanceof Function){
-            execs.push(item);
-            return true;
-        }
-        return false;
+    } else if(!execItems.every(function(item,index,full){
+        return item instanceof Function;
     })){
         throw new Error("Invalid arguments, not all item is function");
     }
+    
+    this.__execs = execItems.slice().reverse();
     // 记录全长
-    this.length = execs.length;
+    this.length = this.__execs.length;
     
-    // 区分处理异步与同步
-    if(this.__async){
-        // 异步
-        this.next =  (function(me){
-            
-            return function(_args,bind,__fromInternal){
-                me.processing = true;
-                
-                setImmediate(function(){
-                    var exec,args = null;
-                    if(exec = me.__execs[this.index++]){
-                        // 内部调起,不再添加callbakc
-                        if(!__fromInternal){
-                            args = Array.isArray(_args) ? _args.slice(0) : [_args];
-                            var cb_async = (function(me,args,bind){
-                                return function(err,isfinish){
-                                    if(err){
-                                        me.emit("error",err);
-                                    }else if(isfinish){
-                                        me.emit("finish");
-                                    }else{
-                                        me.next(args,bind,true);
-                                    }
-                                };
-                            })(me,args,bind);
-                            args.push(cb_async);
-                        }else{
-                            args = _args;
-                        }
-                        
-                        setImmediate(function(exec,args,bind){
-                            try{
-                                exec.apply(bind,args);
-                            }catch(e){
-                                me.emit("error",e);
-                            }
-                        },exec,args,bind);
-                    }else{
-                        me.emit("finish");
-                    }
-                });
-                return me;
-            };
-        })(this);
-        
-    }else{
-        // 同步
-        this.next =  (function(me){
-            return function(_args,bind){
-                me.processing = true;
-                setImmediate(function(){
-                    var exec, args = Array.isArray(_args) ? _args : [_args];
-                    if(exec = me.__execs[me.index++]){
-                        // 增加回调
-                        setImmediate(function(exec,args,bind){
-                            try{
-                                exec.apply(bind,args);
-                                me.next(_args,bind);
-                            }catch(e){
-                                me.emit("error",e);
-                            }
-                        },exec,args,bind);
-                        
-                    }else{
-                        me.emit("finish");
-                    }
-                });
-                return me;
-            };
-        })(this);
-    };
-    
-//    this.on("finish",function(){
-//        //console.log("finish");
-//        setImmediate(function(me){
-//            //me.destroy();
-//        },this);
-//    });
+    this.on("finish",function(){
+        //console.log("finish");
+        setImmediate(function(me){
+            me.destroy();
+        },this);
+    });
     
     /**
      * 错误自动销毁动作, 
      * 即在发生错误时,如果在下一个时间片内,没有重新调起执行, 则自动销毁.
      */
     this.on("error",function(err){
-        //console.log("trying to destroy");
         this.hasError = err;
         this.processing = false;
-        
-        /*
-         * wait a minute let the customer handle error, 
-         * after that to call the 'destroy', if no call the 'next';
-         */
-        setImmediate(function(me){
-            if(me.hasError && me.processing == false){
-                // 通知完成,如果因为错误停止,携带错误对像;
-                me.emit("finish",me.hasError);
-            }
-        },this);
         
         /*
          *  if only this one handle the error , 
          *  throw the error to the parent domain;
          */
-        // && this.listeners("finish").length == 1
         if(this.listeners("error").length == 1){
-            throw err;
+            if(this.domain){
+                this.domain.emit("error",err);
+            }else{
+                throw err;
+            }
+        }else{
+            /*
+             * wait a minute let the customer handle process the error, 
+             * after that to call the 'destroy', if no call the 'next';
+             */
+            this.__errDelay = setImmediate(function(me){
+                // 通知完成,如果因为错误停止,携带错误对像;
+                me.end(err);
+            },this);
         }
     });
 };
@@ -167,6 +92,67 @@ Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
     whenError:function(handle){
         this.on("error",handle);
         return this;
+    },
+    __next:function(){
+        return this.__execs.pop();
+    },
+    end:function(err){
+        this.emit("finish",err);
+    },
+    next:function(_args,bind){
+        var me = this;
+        // 标记处理状态为继续.
+        me.processing = true;
+        clearImmediate(this.__errDelay);
+        var args;
+        if(arguments.length > 0){
+            args = Array.isArray(_args) ? _args.slice(0) : [_args];
+        }else{
+            args = [];
+        }
+        
+        var run = null , exec;
+        // 区分处理异步与同步
+        if(this.__async){
+            
+            run = function(err,stop){
+                var exec;
+                if(err){
+                    me.emit("error",err);
+                }else if(stop == true){
+                    me.emit("finish",err);
+                }else if(exec = me.__next()){
+                    try{
+                        exec.apply(bind,args);
+                    }catch(e){
+                        me.emit("error",e);
+                    }
+                }else{
+                    me.end();
+                }
+            };
+            
+            // 异步的next方法
+            args.push(run);
+        }else{
+            run = function(){
+                var exec; 
+                // 同步
+                while(exec = me.__next()){
+                    try{
+                        exec.apply(bind,args);
+                    }catch(e){
+                        me.emit("error",e);
+                        return;
+                    }
+                }
+                me.end();
+            };
+        };
+        
+        // 延迟执行, 用于实现链式调用.
+        setImmediate(run);
+        return me;
     },
     destroy:function(){
         //console.log("destroy");

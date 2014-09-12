@@ -28,12 +28,12 @@ var isArray = Array.isArray;
 var actions = {}, filters = {}, extensions = {};
 
 
-var joinPath = function(){
-    var args = Array.prototype.slice.call(arguments,0);
-    var rv = args.join("/");
-    var clear = /\/+/g;
-    return rv.replace(clear,"/");
-}
+var joinPath = (function(slice){
+    return function(){
+        var rv = slice.call(arguments,0).join("/");
+        return rv.replace(/\/+/g,"/");
+    }
+})(Array.prototype.slice);
 
 var makeStartWith = function(str,withStr){
     if(str.indexOf(withStr) === 0 ){
@@ -439,8 +439,6 @@ Router.prototype = {
                 
                 // fc 结束后,才执行后续派发;
                 fc.next(context).whenFinish(function(err){
-                    //(function(err){
-                    //debugger;
                     delete context.next;
                     delete context.finish;
                     
@@ -457,9 +455,6 @@ Router.prototype = {
                     }
                     
                     runActions();
-                    
-                    fc.destroy();
-                    //})();
                 });
                 
             }else{

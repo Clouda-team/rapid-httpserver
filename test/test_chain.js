@@ -5,61 +5,135 @@
 var Chain = require("../libs/chain.js");
 var Domain = require("domain");
 
-// async function . 
-var tf = function(item,next){
-    item.i++;
-    console.log(item);
-    next && next();
+var execItem = function(storage,next){
+    storage.c++;
+    next && setTimeout(next,10);
 };
 
-var tff = function(item,next){
-    next && next(null,true);
+var getError = function(){
+    throw new Error("get error");
 }
 
-var tf_with_error = function(item){
-    item.i++;
-    console.log(item);
-    debugger;
-    throw(new Error("occur error when i is " + item.i));
+var storage = {c:0};
+
+// ========= 同步链测试 ============
+
+var async = false;
+
+// 无错误
+function noErr(done){
+    storage.c = 0
+    var lib =  async ? "async" : "sync";
+    var title = "no error";
+    console.log("%s, %s, start ", title, lib);
+    new Chain([execItem,execItem,execItem,execItem,execItem],async).whenFinish(function(err){
+        if(err){
+            console.log("finish: \n%s", err.stack);
+        }
+        console.log("%s, %s, end , rs %d ", title, lib, storage.c);
+        hasErrAndConti(done);
+    }).next(storage);
 }
 
-debugger;
-var dm1 = Domain.create();
-var c1 = new Chain([tf,tf,tf,tf],true);     // test async
+// 有错误,并继续;
+function hasErrAndConti(done){
+    storage.c = 0;
+    var lib =  async ? "async" : "sync";
+    var title = "error and continue";
+    console.log("%s, %s, start ", title, lib);
+    
+    new Chain([execItem,execItem,getError,execItem,execItem,execItem],async).whenFinish(function(err){
+        
+        if(err){
+            console.log("finish: \n%s", err.stack);
+        }
+        console.log("%s, %s, end , rs %d ", title, lib, storage.c);
+        hasErrAndBrk(done);
+        
+    }).whenError(function(err){
+        console.log("error : process error and continue",err);
+        this.next(storage);
+    }).next(storage);
+}
 
-var tt = dm1.add(c1);
+// 有错误,不继续;
+function hasErrAndBrk(done){
+    storage.c = 0;
+    var lib =  async ? "async" : "sync";
+    var title = "error and break";
+    
+    console.log("%s, %s, start ", title, lib);
+    
+    new Chain([execItem,execItem,getError,execItem,execItem,execItem],async).whenFinish(function(err){
+        
+        if(err){
+            console.log("finish: \n%s", err.stack);
+        }
+        
+        console.log("%s, %s, end , rs %d ", title, lib, storage.c);
+        
+        hasErrAndNoHandle(done);
+    }).whenError(function(err){
+        console.log("error : process error and break!",err);
+    }).next(storage);
+}
 
-dm1.on("error",function(err){
-    /**
-     * 如果chain上的错误没被捕获,则会被抛向上层domain对像.
-     */
-    console.log("process error \n", err.stack);
+function hasErrAndNoHandle(done){
+    storage.c = 0;
+    var domain = Domain.create();
+    var lib =  async ? "async" : "sync";
+    var title = "no process error";
+    
+    console.log("%s, %s, start ", title, lib);
+    
+    domain.add(
+    new Chain([execItem,execItem,execItem,getError,execItem,execItem],async).whenFinish(function(err){
+        console.error("if run at here is an error");
+    }).next(storage)
+    );
+    
+    domain.on("error",function(err){
+        debugger;
+        if(err){
+            console.log("finish: \n%s", err.stack);
+        }
+        
+        console.log("%s, %s, end , rs %d ", title, lib, storage.c);
+        
+        domain.remove(hasErrAndNoHandleNoDomain(done));
+        domain.dispose();
+    })
+}
+
+function hasErrAndNoHandleNoDomain(done){
+    storage.c = 0;
+    var lib =  async ? "async" : "sync";
+    var title = "no process error and no domain";
+    
+    console.log("%s, %s, start ", title, lib);
+    var c = new Chain([execItem,execItem,execItem,getError,execItem,execItem],async);
+    
+    c.whenFinish(function(err){
+        console.error("if run at here is an error");
+    }).next(storage);
+
+    process.on("uncaughtException",function(e){
+        console.log("what??????", e.stack);
+        process.removeAllListeners("uncaughtException");
+        done();
+    })
+    
+    return c;
+}
+
+noErr(function(){
+    //  异步链测试
+    async = true;
+    console.log("----------------");
+    
+    noErr(function(){
+        console.log("all done!!!!");
+    });
 });
 
-c1.next({i:0}).whenFinish(function(){
-    console.log("all done!!");
-});
 
-var dm1 = Domain.create();
-var c1 = new Chain([tf,tf,tf,tf],true);     // test async
-
-
-var dm2 = Domain.create();
-var c2 = new Chain([tf_with_error,tf_with_error,tf_with_error,tf_with_error],false);    // test sync
-
-c2.next({i:-4}).whenFinish(function(err){
-    console.log("all done!!");
-}).whenError(function(err){
-    console.log("ok , i am process the error. don't tall the parent domain.");
-    this.next({i:0});
-});
-
-var dm3 = Domain.create();
-var c3 = new Chain([tf_with_error,tf_with_error,tf_with_error,tf_with_error],false);    // test sync
-
-c3.next({i:-4}).whenFinish(function(err){
-    console.log("all done!! ", err && err.stack);
-}).whenError(function(err){
-    console.log("where is the error? ", err.stack);
-    this.next({i:100});
-});

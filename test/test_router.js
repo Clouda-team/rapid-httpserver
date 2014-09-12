@@ -55,6 +55,7 @@ $.defineFilter("filt1",function(){
 $.defineFilter("filt2",function(){
     //log.info("i'm filt2");
     if(~~(Math.random() * 10) > 9){
+        log.info("end 1/10");
         this.finish(new Error("this is end!"));
     }else{
         this.next();
@@ -72,10 +73,6 @@ var root = new $({
 //debugger;
 var abc = new $({
     filters:[
-//         {
-//            url:"/def/*",
-//            doFilter:"filtx"
-//         },
         {
            url:"/*",
            doFilter:"filt1"
@@ -106,7 +103,7 @@ function logProfile(prof){
 }
 
 console.log("before start");
-var httpd = true;
+var httpd = false;
 
 if(httpd == true){
     
@@ -176,21 +173,21 @@ if(httpd == true){
     var c = 0;
     var max = 30000;
     console.time("t");
-    profile.startProfiling("profile");
-    for (var i=0;i <= max;i++){
+    //profile.startProfiling("profile");
+    for (var i=0; i < max; i++){
         
         var fakeReq = _extend(new EventEmitter(),{
-            url:url[ ~~(Math.random() * (url.length-1)) ]
+            url:url[3]
         });
         
         var fakeRes = _extend(new EventEmitter(),{
             send:function(str){
                 //log.info(c + ";   " + str);
-                if(++c >= max){
-                    var cpuProfile = profile.stopProfiling("profile");
+                if(c++, c >= max){
+                    //var cpuProfile = profile.stopProfiling("profile");
                     console.timeEnd("t");
-                    console.log("=======\n ======= end [%d]  =======\n =======\n ",max);
-                    logProfile(cpuProfile);
+                    console.log("=======\n ======= end [%d][%d]  =======\n =======\n ", c,i);
+                    //logProfile(cpuProfile);
                 }
             }
         });
