@@ -6,7 +6,7 @@
 var _extend = require("util")._extend;
 var EventEmitter = require("events").EventEmitter;
 
-var Chain = function(execItems,async){
+var Chain = function(execItems,async,autoDestory){
     
     if(!(this instanceof Chain)){
         return new Chain(execItems, async);
@@ -38,12 +38,14 @@ var Chain = function(execItems,async){
     // 记录全长
     this.length = this.__execs.length;
     
-    this.on("finish",function(){
-        //console.log("finish");
-        setImmediate(function(me){
-            me.destroy();
-        },this);
-    });
+    if(autoDestory == true){
+        this.on("finish",function(){
+            //console.log("finish");
+            setImmediate(function(me){
+                me.destroy();
+            },this);
+        });
+    }
     
     /**
      * 错误自动销毁动作, 
@@ -57,7 +59,7 @@ var Chain = function(execItems,async){
          *  if only this one handle the error , 
          *  throw the error to the parent domain;
          */
-        if(this.listeners("error").length == 1){
+        if(this.listeners("error").length == (autoDestory?1:0)){
             if(this.domain){
                 this.domain.emit("error",err);
             }else{
@@ -103,7 +105,8 @@ Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
         var me = this;
         // 标记处理状态为继续.
         me.processing = true;
-        clearImmediate(this.__errDelay);
+        this.__errDelay && clearImmediate(this.__errDelay);
+        this.__errDelay = null;
         var args;
         if(arguments.length > 0){
             args = Array.isArray(_args) ? _args.slice(0) : [_args];
