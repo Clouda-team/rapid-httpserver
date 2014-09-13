@@ -29,6 +29,16 @@ $.defineExtension("ext2", function(req,res){
     }}
 });
 
+$.defineAction("error",function(){
+    var params = this.params;
+    
+    var statusCode = params.httpStatus || 500,
+        msg = params.errorMsg || "Server Error : " + (params.errorCode || "Unknown"),
+        content = params.errorStack || "Unknow";
+    this.response.statusCode = statusCode;
+    this.response.end(msg + "<br />\n" + content);
+});
+
 $.defineAction("action1",["ext1","ext2"],function(ext1,ext2){
     
     var content = '<img id="abc" />';
@@ -44,17 +54,20 @@ $.defineAction("action1",["ext1","ext2"],function(ext1,ext2){
 //        + '</script>'
         
     //log.info("i'm action1");
+    debugger;
     this.send(str);
 });
 
 $.defineFilter("filt1",function(){
     //log.info("i'm filt1");
-    this.next();
+    //debugger;
+    this.write("next:");
+    this.next(null,true);
 });
 
 $.defineFilter("filt2",function(){
     //log.info("i'm filt2");
-    debugger;
+    //debugger;
     if(~~(Math.random() * 10) > 9){
         log.info("end 1/10");
         this.finish(new Error("this is end!"));
@@ -104,7 +117,7 @@ function logProfile(prof){
 }
 
 console.log("before start");
-var httpd = false;
+var httpd = true;
 
 if(httpd == true){
     
@@ -146,9 +159,11 @@ if(httpd == true){
             context.on("error",function(err){
                 console.err(err.stack);
                 this.sendError(err,500);
-            })
+            });
+            var dispatch = context.domain.bind(root.dispatch);
             //debugger;
-            root.dispatch(context);
+            dispatch.call(root,context);
+            //root.dispatch(context);
 //      res.end("hello");
             // notify master about the request
             singleThread || process.send({ cmd: 'notifyRequest' });

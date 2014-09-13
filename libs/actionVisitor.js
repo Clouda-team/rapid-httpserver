@@ -347,12 +347,27 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 		debugger;
 		statusCode = statusCode || err.http_status || 500;
 		
-		this.forward("error",{
+		if(this.destroyd == true){
+            log.err("an error occured after the context is destroyed! Error Message :\n %s . \n%s", err.message, err.stack);
+            return 
+        }
+		
+		if(!this.forward("error",{
 			httpStatus : statusCode,
 			errorCode : err.code,
 			errorMsg : err.message,
 			errorStack : err.stack
-		});
+		})){
+		    log.err("can not process the error: \n %s" , err.stack);
+		    if(this.response){
+		        try{
+		            this.response.statusCode = 500;
+		            this.response.end("can not process the error: <br />\n" + err.stack);
+		        }catch(e){
+		            log.err(e.stack);
+		        }
+		    }
+		}
 	},
 	/**
 	 * 将一个内容发送到前端
@@ -575,10 +590,17 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	 * 转发成功反回true,否则返回false. 如果action中出现异常,将被抛出.
 	 */
 	forward:function(actionName,params){
-
+	    
 		this.params = params;
+		
 		if(!this.currentRouter){
-		    throw new Error("do not have any router.");
+		    var err = new Error("can not forward to any handle, becase the router is not exists;");
+		    log.err(err.stack);
+		    if(this.response){
+		        this.response.end(err.stack);
+		    }else{
+		        return false;
+		    }
 		}
 		
 		var action = this.currentRouter.__findActionByName(actionName);
@@ -588,7 +610,8 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 			action.call(this, this.request, this.response, this.cachedExt);
 			return true;
 		}else{
-			log.warn("call the nonexistent action [%s]" , name);
+		    debugger;
+			log.warn("call the nonexistent action [%s]" , actionName);
 			return false;
 		}
 		
@@ -602,11 +625,10 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	/**
 	 * 分片写出内容到前端. chunk.
 	 */
-	write:function(){
-		//TODO IMPLEMENT THIS
-		throw new Error("Not Implemented");
+	write:function(chunk,encoding){
+	    this.response.write(chunk,encoding);
 	},
-
+	
     render: function(viewname, data, opts){
         return this.__tplEngine.render(viewname, data, opts);
     },

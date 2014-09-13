@@ -147,7 +147,7 @@ var buildFilterHandle = function(item){
                  next();
              }
              
-             debugger;
+             //debugger;
              context.next = next;
              context.params = depcle(params);
              context.urlPattern = url;
@@ -431,7 +431,7 @@ Router.prototype = {
     },
     // 派发请求
     dispatch:function(context,isReverse){
-        debugger;
+        //debugger;
         var me = this;
         var parentRouter = context.currentRouter;
         var pathInfo = context.pathInfo;
