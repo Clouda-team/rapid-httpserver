@@ -45,23 +45,21 @@ var dispatchServices = function(req,res,head){
 }
 
 var superActions = function (req, res) {
-    /**
-     * 首先尝试services派发
-     */ 
+    var context, dispatch;
     log.dev("%s %s " ,req.method, req.url);
     
+    /**
+     * 首先尝试services派发
+     */
     if(dispatchServices(req,res)){
     	    return;
     }
     
-    var context;
     if(rootRoter){
+//        debugger;
         context = new ActionVisitor(req,res,tplEngine);
-        rootRoter.dispatch(context,{
-            parentMatch:"/",
-            matchPerfix:"/",
-            rest:context.req_pathname
-        });
+        dispatch = context.domain.bind(rootRoter.dispatch);
+        dispatch.call(rootRoter,context);
     }else{
         res.end("server not ready!");
     }
@@ -224,21 +222,17 @@ httpd = _extend(new EventEmitter(),{
 	    },
 	    /**
 	     * 以下为以编程的方式扩展httpserver的一组接口, 
-	     * 每次使用同一个perfix时,将覆盖之前的配置.
+	     * 每次使用同一个prefix时,将覆盖之前的配置.
 	     * 
-	     * 在执行的时候,先设置的先生效.如:
-	     *     httpd.addRouter("/abc/def",{...});  
-	     *     httpd.addRouter("/abc",{...});      
-	     *     
-	     *     当访问url为/abc/def/ghi时, 尽管/abc/def与输入的url更符合,
-	     *     但先设置/abc/def不会被执行, 而是/abc被执行.
-	     * 
-	     * @param perfix {string} 将router应用到那一个前缀以下
+	     * @param prefix {string} 将router应用到那一个前缀以下
 	     * @param router {JSON} 一个具有指定格式的JSON对像.
 	     * 
 	     */
-	    getRouter:function(){
-	        return rootRoter;
+	    mount:function(prefix,router){
+	        if (!(router instanceof Router)) {
+	            router = new Router(conf);
+	        }
+	        return rootRoter.mount.apply(rootRouter,arguments);
 	    },
 	    createRouter:function(conf){
 	        return new Route(conf);

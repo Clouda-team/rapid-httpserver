@@ -1,5 +1,5 @@
 /**
- * 实现一个单向的可执行的链结构.
+ * 实现一个单向的可执行的一次性的链结构.
  * 
  * @author wangsu01@baidu.com
  */
@@ -149,9 +149,9 @@ Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
                 me.end();
             };
         };
-        
         // 延迟执行, 用于实现链式调用.
         setImmediate(run);
+        
         return me;
     },
     destroy:function(){

@@ -54,6 +54,7 @@ $.defineFilter("filt1",function(){
 
 $.defineFilter("filt2",function(){
     //log.info("i'm filt2");
+    debugger;
     if(~~(Math.random() * 10) > 9){
         log.info("end 1/10");
         this.finish(new Error("this is end!"));
@@ -146,12 +147,8 @@ if(httpd == true){
                 console.err(err.stack);
                 this.sendError(err,500);
             })
-            debugger;
-            root.dispatch(context,{
-                parentMatch:"/",
-                matchPerfix:"/",
-                rest:context.req_pathname
-            });
+            //debugger;
+            root.dispatch(context);
 //      res.end("hello");
             // notify master about the request
             singleThread || process.send({ cmd: 'notifyRequest' });
@@ -161,7 +158,6 @@ if(httpd == true){
     }
     
 }else{
-    
     
     var url = [
                "/",
@@ -181,12 +177,12 @@ if(httpd == true){
         });
         
         var fakeRes = _extend(new EventEmitter(),{
-            send:function(str){
-                //log.info(c + ";   " + str);
+            send:function(str,isError){
+                isError && log.info(c + ";   " + str);
                 if(c++, c >= max){
                     //var cpuProfile = profile.stopProfiling("profile");
                     console.timeEnd("t");
-                    console.log("=======\n ======= end [%d][%d]  =======\n =======\n ", c,i);
+                    console.log("=======\n======= end [%d][%d]  =======\n=======\n ", c,i);
                     //logProfile(cpuProfile);
                 }
             }
@@ -200,6 +196,9 @@ if(httpd == true){
             cachedExt:[],
             send:function(str){
                 this.response.send(str);
+            },
+            sendError:function(str){
+                this.response.send(str,true);
             }
         });
         
@@ -207,15 +206,11 @@ if(httpd == true){
         
         mydomain.add(fakeContext);
         mydomain.on("error",function(err){
-            fakeContext.send(err.stack);
+            fakeContext.sendError(err && err.stack);
         });
         
-        debugger;
-        root.dispatch(fakeContext,{
-            parentMatch:"/",
-            matchPerfix:"/",
-            rest : fakeContext.req_pathname
-        });
+        //debugger;
+        root.dispatch(fakeContext);
     }
 }
 

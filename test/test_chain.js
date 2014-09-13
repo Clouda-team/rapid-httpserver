@@ -120,6 +120,7 @@ function hasErrAndNoHandleNoDomain(done){
     process.on("uncaughtException",function(e){
         console.log("what??????", e.stack);
         process.removeAllListeners("uncaughtException");
+        
         done();
     })
     

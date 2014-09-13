@@ -43,7 +43,8 @@ var ActionVisitor = function(req,res,engine){
 	
 	this.cachedExt = {};
 	this.__tplEngine = engine;
-	this.currentRouter = null; //在router中被设置
+	this.currentRouter = null; // 将在router的dispatch过程中被设置
+	
 	
 	EventEmitter.call(me);
 	
@@ -69,6 +70,12 @@ var ActionVisitor = function(req,res,engine){
 	
 	this.req_pathname = getReqPath(req.url);
 	
+	   // 记录router的dispatch信息.
+    this.pathInfo  = {
+        rest:this.req_pathname,
+        parentMatch:["/"]
+    };
+	
 	 // 错误派发;
     var domain = Domain.create();
     
@@ -77,8 +84,9 @@ var ActionVisitor = function(req,res,engine){
     domain.add(res);
     
     var errorHandle = function(err){
+        debugger;
         	log.err(err.stack);
-        	me.sendError(err,500);
+        	me.sendError(err, err.http_status || 500);
     };
     
     domain.on("error",errorHandle);
@@ -336,8 +344,8 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	 * 		  后续应该与error_handle关联在一起
 	 */
 	sendError:function(err,statusCode){
-		
-		statusCode = statusCode || 500;
+		debugger;
+		statusCode = statusCode || err.http_status || 500;
 		
 		this.forward("error",{
 			httpStatus : statusCode,

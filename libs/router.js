@@ -26,7 +26,11 @@ var tplEngine = require("./views");
 var isArray = Array.isArray;
 
 var actions = {}, filters = {}, extensions = {};
-
+/**
+ *  已建立并mounte升效的RouterTree.
+ *  key为各级prefix字符串组成.
+ */
+var RouterTree = {};
 
 var joinPath = (function(slice){
     return function(){
@@ -43,11 +47,20 @@ var makeStartWith = function(str,withStr){
 };
 
 var makeEndWith = function(str,withStr){
-    if(str.lastIndexOf(withStr) === 0 ){
+    if(str.lastIndexOf(withStr) === str.length - 1){
         return str;
     }
     return str + withStr;
 };
+
+function countPath (str){
+    var c = str.split("/").length;
+    if(str[0] == "/")
+        c--;
+    if(str[str.length -1] == "/")
+        c--;
+    return c;
+}
 
 /**
  * 包装action与filter的原始方法,使所有可执行的内容具有统一的调用接口
@@ -108,7 +121,7 @@ var buildFilterHandle = function(item){
     // 如果未指定url,则认为匹配全部
     var url = wildcardToReg(item.url || /(.*)/);
     var exec , name = item.doFilter, params = item.params || {};
-    
+    var buildFilter;
      switch(typeof(name)){
         case "function":
             exec =  packingShell([],name);
@@ -117,18 +130,66 @@ var buildFilterHandle = function(item){
             exec = filters[name];
             if(!exec){
                 exec = name;
-                log.info("waiting filter [%s], try again at request event", filterName);
+                log.info("waiting filter [%s], try again at request event", name);
             }
             break;
         default:
             throw new Error("type error: doFilter is not function or string! [" + typeof(filter) + "]");
     }
-    
-    return {
-        url:url,
-        exec:exec,
-        params : params
-    };
+     
+     buildFilter = function(url,handle,params){
+         // real executable
+         
+         var rv = function(context,fullArr,next){
+             var _handle, newErr;
+             
+             if(!url.test(context.pathInfo.rest)){
+                 next();
+             }
+             
+             debugger;
+             context.next = next;
+             context.params = depcle(params);
+             context.urlPattern = url;
+             
+             // 使用call判断是否可执行.字符串不存在call,
+             // 如果是对像并且存在call方法,则认为是其它包装过的可执行内容
+             if(handle.call){
+                 // 正常执行 filter
+                 handle.call(context);
+             }else if(_handle = filters[handle]){
+                 /**
+                  * 处理Filter delay
+                  */
+                 fullArr.some(function(item,index,fullArr){
+                     if(item.waiting == handle){
+                         fullArr[index] = buildFilter(url,_handle,params);
+                         return true;
+                     }
+                 });
+                 
+                 _handle.call(context);
+             }else{
+                 // filter 还是找不到, 所以无法执行.直接抛异常;
+                 
+                 delete context.next;
+                 delete context.params;
+                 delete context.urlPattern;
+                 
+                 newErr = new Error("Filter [" + handle + "] is not exists!");
+                 newErr.http_status = 404;
+                 throw newErr;
+             }
+         }
+         
+         if(typeof(handle) == "string"){
+             rv.waiting = handle;
+         }
+         
+         return rv;
+     };
+     
+    return buildFilter(url,exec,params);
 }
 
 
@@ -137,7 +198,7 @@ var buildActionHandle = function(item){
     var url = wildcardToReg(item.url || /(.*)/);
     // 保证一定是一个可处理的handle对像
     var handle, value = null , params = item.params || {};
-    
+    var buildAction;
     /**
      * 按优先级判断handle，
      * 因为在配置文件中可以乱写，有可能一口气写好几个，
@@ -176,17 +237,61 @@ var buildActionHandle = function(item){
         params.url = value;
     }
     
-    return {
-        url : url,
-        exec : handle,
-        params : params
-    };
+    buildAction = function(url,handle,params){
+        
+        var rv = function(context){
+            var _handle, newErr;
+            
+            if(!url.test(context.pathInfo.rest)){
+                return false;
+            }
+            
+            if(handle.call){
+                context.params = depcle(params);
+                context.urlPattern = url;
+                handle.call(context);
+                return true;
+            }
+            
+            /**
+             * 处理action delay
+             */
+            if(_handle = actions[handle]){
+                _handle.call(context);
+                return buildAction(url,_handle,params);
+            }
+            newErr = new Error("Action [" + handle + "] is not exists!");
+            newErr.http_status = 404;
+            return newErr;
+        };
+        
+        // real executable
+        return rv
+    }
+    
+    return buildAction(url,handle,params);
+
 };
 
 
 var Router = function(opts){
-    this.subs = [];
+    /**
+     * subs是优先级最高的处理链.
+     * 每个项目由 / 开头. 其它的为Router自己的记录信息.
+     */ 
+    this.subs = {
+        length:0,   //长度信息
+        prefixes:[]    //排序后的prefix, 排序规则以路径深度为准,其判断方式为 / 的个数倒序.
+    };
+    /**
+     * filter是第二优先, 
+     * 只要派发进当前router的请求,都会经过filter链
+     */
     this.filters = [];
+    /**
+     * action链是最终执行的业务处理链.
+     * 如果不能处理也没有defaultAction,将被回抛给上级router.
+     */
     this.actions = [];
     
     if(!(opts && (opts.map || opts.filters || opts.defaultAction))){
@@ -220,7 +325,7 @@ var Router = function(opts){
             })(actionName,me);
         }
     }else{
-        this.defaultAction = opts.defaultAction || false;
+        this.defaultAction = opts.defaultAction instanceof Function ? packingShell([],opts.defaultAction) : false;
     }
     
     if(typeof(opts.error) == "string"){
@@ -247,252 +352,160 @@ Router.prototype = {
     __findActionByName:function(name){
         return actions[name];
     },
-    // 派发请求
-    dispatch : function(context,pathInfo,isReverse){
-        //debugger;
+    __dispatchFilter:function(context,callback){
         var me = this;
-        var domain = context.domain;
-        var execFilter = [];
-
-        var restPart = makeStartWith(pathInfo.rest,"/");
-        var parentMath = makeEndWith(pathInfo.parentMatch,"/");
         
-        context.currentRouter = me;
+        if(me.filters.length == 0){
+            callback();
+            return;
+        }
         
-        /*
-         * 向子router派发请求.如果与子router中的perfix前缀匹配,,
-         * 则交给子router处理,直接子router处理不了,
-         * 回派给parent时才回到上级的action链上继续处理,这种情况下
-         * 除非配置了match url的action,否则一般直接进入defaultAction.
-         */
-        var sub_dispatch = me.subs.length == 0 ? false : domain.bind(function(sub){
-            var perfix = sub.perfix;
-            var sub = sub.router;
-            
-            var subPathInfo = {};
-            
-            var subRestPath = null;
-            
-            if(restPart.indexOf(perfix) == 0){
-                // 处理向子路由派发时的路径信息
-                //parentMath,所有父级已匹配到的路径.
-                subPathInfo.parentMatch = joinPath(parentMath,perfix,"/");
-                // 整个请求路径中, 未被匹配的部份
-                subPathInfo.rest = restPart.substr(perfix.length);
-                // 子路由自己在上一级路由中被配置的前缀
-                subPathInfo.matchPerfix = perfix;
-                
-               // setImmediate(function(sub,context,subPathInfo){
-                    log.dev("dispathc : %s", subPathInfo.rest);
-                    sub.dispatch(context,subPathInfo);
-                //}, sub,context,subPathInfo);
-                
+        var fc = new Chain(me.filters,true);
+        fc.whenFinish(callback).next([context,me.filters]);
+        
+    },
+    __dispatchSubRouter:function(context){
+        
+        var me = this, pathInfo, restPath, matched, sub;
+        
+        if(me.subs.length == 0){
+            return false;
+        };
+        pathInfo = context.pathInfo;
+        restPath = pathInfo.rest;
+        
+        if(me.subs.prefixes.some(function(prefixes){
+            if(restPath.indexOf(prefixes) == 0){
+                matched = prefixes; 
                 return true;
             }
             return false;
-        });
+        })){
+            
+            // -1 是为了使rest总是以 / 开头
+            pathInfo.rest = restPath.substr(matched.length - 1);
+            pathInfo.parentMatch.push(matched);
+            
+            sub = me.subs[matched];
+            sub.dispatch(context,false);
+            
+            return true;
+        }
         
-        var filters_dispatch = me.filters.length == 0 ? false : function(fitem,index,fullArr){
-            var rv = true;
-            var url = fitem.url;
-            var execname, exec;
+        return false;
+    },
+    __dispatchAction:function(context){
+        var me = this;
+        
+        if(me.actions.length != 0 && me.actions.some(function(exec,index,fullArr){
+            var rs = exec(context);
             
-            exec = execname = fitem.exec;
-            
-            if(url.test(restPart)){
-                
-                if(!(exec instanceof Function)){
-                    /*
-                     * 已经是可执行的filter对像. 直接压进执行链
-                     * 如果不是可执行对像,则应为一个字符串名称, 
-                     * 尝试从filters的map中找.
-                     *  找到则继续,
-                     *  找不到则压入一个抛出错误替代执行元素
-                     */
-                    
-                    if(! ((exec = filters[execname]) instanceof Function)){
-                        exec = new Error("filter[" + execname + "] is not define!");
-                        // 清空之前的所有执行内容,直接在执行请抛出异常.
-                        execFilter.length = 0;
-                        rv = false;
-                    }
-                }
-                
-                /**
-                 * 根据rv的值来决定是否执行filter.
-                 * 如果为true, 则证明,filterItem能正常执行,这种情况下,创建执行闭包并压入执行链
-                 * 如果为false,则证明未找到filterItem所指向的filter,
-                 *  这种情况下,应该直接终止执行链的后续动作,并将需抛出的异常压入执行链中
-                 */
-                execFilter.push(rv ? (function(exec,urlPattern,params){
-                    return function(context,next){
-                        //debugger;
-                        context.next = next;
-                        context.finish = function(err){
-                            next(err,true);
-                        };
-                        context.urlPattern = urlPattern;
-                        context.params  = depcle(params);
-                        exec.call(context);
-                    };
-                })(exec,fitem.url,fitem.params) : exec);
-                
+            if(rs === true){
+                return true;
             }
             
-            return rv;
-        };
-        
-        var actions_dispatch = domain.bind(function(aitem,index,fullArr){
-            var rv = true;
-            var url = aitem.url;
-            var execname, exec;
-            exec = execname = aitem.exec;
+            if(rs === false){
+                return false;
+            }
             
-            if(url.test(restPart)){
-                
-                if(!(exec instanceof Function)){
-                    /*
-                     * 已经是可执行的filter对像. 直接压进执行链
-                     * 如果不是可执行对像,则应为一个字符串名称, 
-                     * 尝试从filters的map中找.
-                     *  找到则继续,
-                     *  找不到则压入一个抛出错误替代执行元素
-                     */
-                    
-                    if(!((exec = actions[execname]) instanceof Function)){
-                        throw new Error("action[" + execname + "] is not define!");
-                    }
-                    
-                    // 下次直来不需再进行字符串取值
-                    aitem.exec = exec;
-                }
-                
-                context.urlPattern = url;
-                context.params = depcle(aitem.params);
-                
-                exec.call(context);
-                return true
+            if(typeof(rs) == "function"){
+                fullArr[index] = rs;
+                return true;
+            }
+            
+            if(rs != undefined){
+                throw rs;
             }
             
             return false;
-        });
+        })){
+            return true;
+        }
         
-        var reverseToParent = function(){
-            me.parent.dispatch(context,pathInfo,true);
-        };
+        if(me.defaultAction){
+            me.defaultAction.call(context);
+            return true;
+        }
         
-        // 派发actions及defaultAction;
-        var runActions = function(){
-            //debugger;
-            if(me.actions.length > 0 && me.actions.some(actions_dispatch,context)){
-                // 被当前action中的某个处理.不再继续
+        return false;
+    },
+    // 派发请求
+    dispatch:function(context,isReverse){
+        debugger;
+        var me = this;
+        var parentRouter = context.currentRouter;
+        var pathInfo = context.pathInfo;
+        context.currentRouter = me;
+        var dispatchParent = function(){
+             pathInfo.rest = joinPath(pathInfo.rest, pathInfo.parentMatch.pop());
+             
+             if(parentRouter){
+                 parentRouter.dispatch(context,true);
+             }else{
+                 context.emit("error",new Error("can't dispatch the request [" + context.req_pathname + "]"));
+             }
+        }
+        
+        if(isReverse){
+            
+            if(me.__dispatchAction(context)){
+                return; 
+             }
+            
+            return dispatchParent();
+        }
+        
+        me.__dispatchFilter(context,function(err){
+                    
+            if(err){
+                context.emit("error",err);
                 return;
             }
-            
-            /*
-             * 派发至defaultAction, 
-             * 如果没有default,则派发至parent的defaultAction.
-             * 此操作用来保证请求一定被处理;
-             */ 
-            if(me.defaultAction){
-                me.defaultAction.call(context,me.defaultAction);
-            }else{
-                reverseToParent();
+                       
+            if(me.__dispatchSubRouter(context)){
+                return;
             }
-        };
-        
-        
-        // 如果是从sub向上抛出的派发请求, 则跳过filter与sub直接走action.
-        if(isReverse){
-            /**
-             * 反着拼一下url和path部份.
-             */
-            return runActions();
-        }
-        
-        /**
-         * 派发过程为 filter -> sub_router ->  action;
-         * 
-         * filter除异常外其它情况需保证完全通过整条执行链
-         * sub_routers中内容被处理,则不再继续后面的action链;
-         * action遇到处理即停止. 
-         * 如果action没有处理成功,则常试defaultAction,
-         * 如果当前router没有defaultAction,则抛给parent继续派发.
-         * 
-         */
-        // forEach只是找取match这次请求的filter,但是并未执行
-        var dofilter = filters_dispatch ? me.filters.every(filters_dispatch) : true;
-        
-        /*
-         * 如果dofilter为false的情况下,表示filters中存在不能
-         * 找到执行内容的filter. 所以直接执行execfilter中的第
-         * 一个即可返回错误.不需要构建执行链.
-         */
-        if(dofilter){
-            
-            if(execFilter.length > 0){
-                // filter中存在异步处理,所以依赖执行链.
-                var fc = new Chain(execFilter,true);
-                
-                // fc不处理错误,出果出现不可控异常直接抛给context的domain;
-                domain.add(fc);
-                
-                // fc 结束后,才执行后续派发;
-                fc.next(context).whenFinish(function(err){
-                    delete context.next;
-                    delete context.finish;
-                    
-                    if(err){
-                        // 错误直接抛出给content.
-                        domain.emit("error",err);
-                        return;
-                    }
-                    
-                    // 派发sub_router, subs为同步判断, 所以直接使用数组的some方法
-                    if(sub_dispatch && me.subs.some(sub_dispatch,context)){
-                        // 如果subs能构处理,则直接交给subs,并且不再继续.
-                        return true;
-                    }
-                    
-                    runActions();
-                });
-                
-            }else{
-                
-                // 派发sub_router, subs为同步判断, 所以直接使用数组的some方法
-                if(sub_dispatch && me.subs.some(sub_dispatch,context)){
-                    // 如果subs能构处理,则直接交给subs,并且不再继续.
-                    return true;
-                }
-                
-                runActions();
+                       
+            if(me.__dispatchAction(context)){
+               return; 
             }
             
-        }else{
-            
-            //直接响应错误;
-            domain.emit("error",execFilter[0]);
-        }
+            return dispatchParent();
+        });
+      
     },
     // 挂载子router
-    mount : function(perfix,sub){
-        
-        if(! typeof(perfix) == "string"){
-            throw new Error("perfix must be a string");
+    mount : function(prefix,sub){
+        var subs = this.subs;
+        if(! typeof(prefix) == "string"){
+            throw new Error("prefix must be a string");
         }
         
         if(! sub instanceof Router){
             throw new Error("sub must be a instance of Router");
         }
         
-        sub.parent = this;
+        prefix = makeStartWith(makeEndWith(prefix,"/"),"/");   // 只配置整级路径,即最后一个字符必须是 / ;
         
-        var item = {
-            perfix:makeEndWith(perfix,"/"),   // 只配置整级路径,即最后一个字符必须是 / ;
-            router:sub
-        };
+        if(subs[prefix]){
+            log.warn("replace sub router prefix[%s]", prefix);
+        }else{
+            subs.prefixes.push(prefix);
+            subs.prefixes.sort(function(a,b){
+                var al = countPath(a);
+                var bl = countPath(b);
+                if(al > bl){
+                    return -1;
+                }else if(al < bl){
+                    return 1;
+                }else{
+                    return 0;
+                }
+            });
+            subs.length = subs.prefixes.length;
+        }
         
-        this.subs.push(item);
+        subs[prefix] = sub;
     }
 };
 
