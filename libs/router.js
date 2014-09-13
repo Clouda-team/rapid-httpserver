@@ -19,13 +19,38 @@ var getFunArgs = require("./lib.js").getFunArgs;
 var wildcardToReg = require("./lib.js").wildcardToReg
 var randomStr = require("./lib.js").randomStr;
 
-var Chain = require("./chain.js");
+//var Chain = require("./chain.js");
 
 var tplEngine = require("./views");
 
 var isArray = Array.isArray;
 
 var actions = {}, filters = {}, extensions = {};
+
+var Chain = function(execArr){
+    this._exec = execArr.slice(0);
+}
+
+Chain.prototype = {
+    whenFinish:function(handle){
+        this.onFinish = handle;
+    },
+    next:function(args){
+        var me = this;
+        args = args || [];
+        var run = function(){
+            var exec = me._exec.pop();
+            if(exec){
+                exec.apply(null,args);
+            }else{
+                me.onFinish && me.onFinish();
+            }
+        }
+        args.push(run);
+        run();
+    }
+}
+
 /**
  *  已建立并mounte升效的RouterTree.
  *  key为各级prefix字符串组成.
@@ -144,7 +169,7 @@ var buildFilterHandle = function(item){
              var _handle, newErr;
              
              if(!url.test(context.pathInfo.rest)){
-                 next();
+                 return next();
              }
              
              //debugger;
@@ -361,8 +386,8 @@ Router.prototype = {
         }
         
         var fc = new Chain(me.filters,true);
-        fc.whenFinish(callback).next([context,me.filters]);
-        
+        fc.whenFinish(callback);
+        fc.next([context,me.filters]);
     },
     __dispatchSubRouter:function(context){
         

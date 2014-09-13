@@ -59,14 +59,14 @@ $.defineAction("action1",["ext1","ext2"],function(ext1,ext2){
 });
 
 $.defineFilter("filt1",function(){
-    //log.info("i'm filt1");
+    log.info("i'm filt1");
     //debugger;
-    this.write("next:");
-    this.next(null,true);
+    //this.write("next:");
+    this.next();
 });
 
 $.defineFilter("filt2",function(){
-    //log.info("i'm filt2");
+    log.info("i'm filt2");
     //debugger;
     if(~~(Math.random() * 10) > 9){
         log.info("end 1/10");
@@ -157,14 +157,14 @@ if(httpd == true){
             var context = new ActionVisitor(req,res);
             
             context.on("error",function(err){
-                console.err(err.stack);
+                log.err(err.stack);
                 this.sendError(err,500);
             });
+            
             var dispatch = context.domain.bind(root.dispatch);
             //debugger;
             dispatch.call(root,context);
-            //root.dispatch(context);
-//      res.end("hello");
+            
             // notify master about the request
             singleThread || process.send({ cmd: 'notifyRequest' });
         }).listen(8000,function(){
@@ -184,7 +184,7 @@ if(httpd == true){
     var c = 0;
     var max = 30000;
     console.time("t");
-    //profile.startProfiling("profile");
+    profile.startProfiling("profile");
     for (var i=0; i < max; i++){
         
         var fakeReq = _extend(new EventEmitter(),{
@@ -195,10 +195,10 @@ if(httpd == true){
             send:function(str,isError){
                 isError && log.info(c + ";   " + str);
                 if(c++, c >= max){
-                    //var cpuProfile = profile.stopProfiling("profile");
+                    var cpuProfile = profile.stopProfiling("profile");
                     console.timeEnd("t");
                     console.log("=======\n======= end [%d][%d]  =======\n=======\n ", c,i);
-                    //logProfile(cpuProfile);
+                    logProfile(cpuProfile);
                 }
             }
         });
