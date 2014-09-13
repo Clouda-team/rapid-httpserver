@@ -9,7 +9,7 @@ var EventEmitter = require("events").EventEmitter;
 var Chain = function(execItems,async){
     
     if(!(this instanceof Chain)){
-        return new Chain(execItems, async, bind);
+        return new Chain(execItems, async);
     }
     
     EventEmitter.call(this);
