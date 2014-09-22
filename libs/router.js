@@ -347,7 +347,7 @@ var Router = function(opts){
                         throw new Error("Action ["+actionName+"] is not exists!");
                     }
                 }
-            })(actionName,me);
+            })(opts.defaultAction,me);
         }
     }else{
         this.defaultAction = opts.defaultAction instanceof Function ? packingShell([],opts.defaultAction) : false;
@@ -366,7 +366,7 @@ var Router = function(opts){
                         throw new Error("error handle [" + actionName + "] is not exists!");
                     }
                 }
-            })(actionName,me);
+            })(opts.error,me);
         };
     }else if(opts.error instanceof Function){
         this.error = packingShell([], opts.error);

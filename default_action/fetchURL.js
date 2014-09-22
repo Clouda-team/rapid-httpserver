@@ -112,6 +112,5 @@ module.exports = function(){
 		default:
 			throw new Error("Unsupport Mehtods :  " + opts.method + "  " + req.url);
 	}
-	
 	//this.send(JSON.stringify(opts));
 }
