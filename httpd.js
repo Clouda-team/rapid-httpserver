@@ -7,7 +7,7 @@ var EventEmitter = require("events").EventEmitter;
 
 var ActionVisitor  = require("./libs/actionVisitor.js");
 var Router  = require("./libs/router.js");
-var tplEngine = require("./libs/views");
+var tplEngine = null;
 
 var defineAction = Router.defineAction,
     defineFilter = Router.defineFilter,
@@ -185,8 +185,34 @@ httpd = _extend(new EventEmitter(),{
 	                this.sendStatus(500, err.message);
 	            },
 	        });
-
-			tplEngine.conf(conf.tplConfig);
+	        
+	        tplEngine = (function buildTplEngine(tplEngine){
+	            try{
+	                var enginePath;
+	                if(!tplEngine){
+	                    return require("./libs/views");
+	                }
+	                
+	                switch(typeof(tplEngine)){
+	                    case "string" :
+	                        enginePath = path.join(ROOT_DIR,tplEngine)
+	                        log.info("httpd : load template engine from : %s" ,enginePath);
+	                        return require(enginePath);
+	                    case "object" :
+	                        if(tplEngine.render && tplEngine.renderStr){
+	                            return tplEngine;
+	                        }
+	                    default:
+	                        throw new Error("Invalid : config.tplConf.engine, use default : /libs/views.js");
+	                }
+	                
+	            }catch(e){
+	                log.warn(e.stack);
+	                return require("./libs/views");
+	            }
+	        })(conf.tplConfig && conf.tplConfig.engine);
+	        
+	        tplEngine.conf && tplEngine.conf(conf.tplConfig);
 			
 	        server = http.createServer(superActions);
 	        server.on("upgrade",dispatchServices);

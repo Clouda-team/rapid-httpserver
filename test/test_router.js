@@ -59,14 +59,14 @@ $.defineAction("action1",["ext1","ext2"],function(ext1,ext2){
 });
 
 $.defineFilter("filt1",function(){
-    log.info("i'm filt1");
+    //log.info("i'm filt1");
     //debugger;
     //this.write("next:");
     this.next();
 });
 
 $.defineFilter("filt2",function(){
-    log.info("i'm filt2");
+    //log.info("i'm filt2");
     //debugger;
     if(~~(Math.random() * 10) > 9){
         log.info("end 1/10");
@@ -117,7 +117,7 @@ function logProfile(prof){
 }
 
 console.log("before start");
-var httpd = true;
+var httpd = false;
 
 if(httpd == true){
     

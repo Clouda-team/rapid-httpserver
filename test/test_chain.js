@@ -11,6 +11,7 @@ var execItem = function(storage,next){
 };
 
 var getError = function(){
+    debugger;
     throw new Error("get error");
 }
 
@@ -85,10 +86,12 @@ function hasErrAndNoHandle(done){
     var title = "no process error";
     
     console.log("%s, %s, start ", title, lib);
-    
     domain.add(
     new Chain([execItem,execItem,execItem,getError,execItem,execItem],async).whenFinish(function(err){
-        console.error("if run at here is an error");
+        debugger;
+        if(!err){
+            console.error("if run at here is an error");
+        }
     }).next(storage)
     );
     
@@ -109,11 +112,12 @@ function hasErrAndNoHandleNoDomain(done){
     storage.c = 0;
     var lib =  async ? "async" : "sync";
     var title = "no process error and no domain";
-    
+    debugger
     console.log("%s, %s, start ", title, lib);
     var c = new Chain([execItem,execItem,execItem,getError,execItem,execItem],async);
     
     c.whenFinish(function(err){
+        debugger;
         console.error("if run at here is an error");
     }).next(storage);
 

@@ -368,14 +368,20 @@ var Router = function(opts){
                 }
             })(actionName,me);
         };
+    }else if(opts.error instanceof Function){
+        this.error = packingShell([], opts.error);
     }else{
-        this.error = opts.error || false;
+        this.error = false;
     }
 };
 
 Router.prototype = {
     __findActionByName:function(name){
-        return actions[name];
+        if(name == "error" && this.error instanceof Function){
+            return this.error;
+        }else{
+            return actions[name];
+        }
     },
     __dispatchFilter:function(context,callback){
         var me = this;

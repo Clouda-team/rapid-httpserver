@@ -84,7 +84,7 @@ var ActionVisitor = function(req,res,engine){
     domain.add(res);
     
     var errorHandle = function(err){
-        debugger;
+        //debugger;
         	log.err(err.stack);
         	me.sendError(err, err.http_status || 500);
     };
@@ -344,7 +344,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	 * 		  后续应该与error_handle关联在一起
 	 */
 	sendError:function(err,statusCode){
-		debugger;
+		//debugger;
 		statusCode = statusCode || err.http_status || 500;
 		
 		if(this.destroyd == true){
@@ -610,7 +610,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 			action.call(this, this.request, this.response, this.cachedExt);
 			return true;
 		}else{
-		    debugger;
+		    //debugger;
 			log.warn("call the nonexistent action [%s]" , actionName);
 			return false;
 		}
@@ -634,7 +634,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
     },
 
     renderStr: function(tpl, data, opts){
-    	return this.__tplEngine.renderStr(tpl, data, opts);
+    	    return this.__tplEngine.renderStr(tpl, data, opts);
     },
 
     lookup: function(url){

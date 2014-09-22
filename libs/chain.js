@@ -59,7 +59,7 @@ var Chain = function(execItems,async,autoDestory){
          *  if only this one handle the error , 
          *  throw the error to the parent domain;
          */
-        if(this.listeners("error").length == (autoDestory?1:0)){
+        if(this.listeners("error").length == 1){
             if(this.domain){
                 this.domain.emit("error",err);
             }else{
