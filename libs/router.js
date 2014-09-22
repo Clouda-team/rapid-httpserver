@@ -300,6 +300,7 @@ var buildActionHandle = function(item){
 
 
 var Router = function(opts){
+    var me = this;
     /**
      * subs是优先级最高的处理链.
      * 每个项目由 / 开头. 其它的为Router自己的记录信息.
@@ -341,7 +342,7 @@ var Router = function(opts){
             this.defaultAction = (function(actionName,me){
                 return function(){
                     me.defaultAction = actions[actionName];
-                    if( !me.defaultAction ){
+                    if( me.defaultAction ){
                         me.defaultAction.apply(this,arguments);
                     }else{
                         throw new Error("Action ["+actionName+"] is not exists!");
@@ -360,7 +361,7 @@ var Router = function(opts){
             this.error = (function(actionName,me){
                 return function(){
                     me.error = actions[actionName];
-                    if( !me.error ){
+                    if( me.error ){
                         me.error.apply(this,arguments);
                     }else{
                         throw new Error("error handle [" + actionName + "] is not exists!");
