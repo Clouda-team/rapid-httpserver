@@ -555,7 +555,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 					});
 					
 					//清空
-					bufferArr.length = 0;
+					bufferArr.clean();
 					
 					me.response.end();
 				});

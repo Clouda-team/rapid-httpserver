@@ -29,6 +29,7 @@ var actions = {}, filters = {}, extensions = {};
 
 var Chain = function(execArr){
     this._exec = execArr.slice(0);
+    this._exec.reverse();
 }
 
 Chain.prototype = {
@@ -147,19 +148,41 @@ var buildFilterHandle = function(item){
     var url = wildcardToReg(item.url || /(.*)/);
     var exec , name = item.doFilter, params = item.params || {};
     var buildFilter;
-     switch(typeof(name)){
-        case "function":
-            exec =  packingShell([],name);
-            break;
-        case "string":
-            exec = filters[name];
-            if(!exec){
-                exec = name;
-                log.info("waiting filter [%s], try again at request event", name);
-            }
-            break;
-        default:
-            throw new Error("type error: doFilter is not function or string! [" + typeof(filter) + "]");
+    var isEMW = item.isEMW;
+    
+    if(isEMW){
+        switch(typeof(name)){
+            case "function":
+                exec =  name;
+                break;
+            case "string":
+                exec = require(name);
+                if(!exec){
+                    log.warn("can not require the express middleware [%s]", name);
+                    exec = function(req,res,next){
+                        log.err("can not require the express middleware [%s]", name);
+                        next();
+                    };
+                }
+                break;
+            default:
+                throw new Error("type error: doFilter is not function or string! [" + typeof(filter) + "]");
+        }
+    }else{
+        switch(typeof(name)){
+            case "function":
+                exec =  packingShell([],name);
+                break;
+            case "string":
+                exec = filters[name];
+                if(!exec){
+                    exec = name;
+                    log.info("waiting filter [%s], try again at request event", name);
+                }
+                break;
+            default:
+                throw new Error("type error: doFilter is not function or string! [" + typeof(filter) + "]");
+        }
     }
      
      buildFilter = function(url,handle,params){
@@ -172,39 +195,45 @@ var buildFilterHandle = function(item){
                  return next();
              }
              
-             //debugger;
-             context.next = next;
-             context.params = depcle(params);
-             context.urlPattern = url;
-             
-             // 使用call判断是否可执行.字符串不存在call,
-             // 如果是对像并且存在call方法,则认为是其它包装过的可执行内容
-             if(handle.call){
-                 // 正常执行 filter
-                 handle.call(context);
-             }else if(_handle = filters[handle]){
-                 /**
-                  * 处理Filter delay
-                  */
-                 fullArr.some(function(item,index,fullArr){
-                     if(item.waiting == handle){
-                         fullArr[index] = buildFilter(url,_handle,params);
-                         return true;
-                     }
-                 });
-                 
-                 _handle.call(context);
+             if(isEMW){
+                 context.request.next = next;
+                 handle(context.request,context.response,next);
              }else{
-                 // filter 还是找不到, 所以无法执行.直接抛异常;
+               //debugger;
+                 context.next = next;
+                 context.params = depcle(params);
+                 context.urlPattern = url;
                  
-                 delete context.next;
-                 delete context.params;
-                 delete context.urlPattern;
-                 
-                 newErr = new Error("Filter [" + handle + "] is not exists!");
-                 newErr.http_status = 404;
-                 throw newErr;
+                 // 使用call判断是否可执行.字符串不存在call,
+                 // 如果是对像并且存在call方法,则认为是其它包装过的可执行内容
+                 if(handle.call){
+                     // 正常执行 filter
+                     handle.call(context);
+                 }else if(_handle = filters[handle]){
+                     /**
+                      * 处理Filter delay
+                      */
+                     fullArr.some(function(item,index,fullArr){
+                         if(item.waiting == handle){
+                             fullArr[index] = buildFilter(url,_handle,params);
+                             return true;
+                         }
+                     });
+                     
+                     _handle.call(context);
+                 }else{
+                     // filter 还是找不到, 所以无法执行.直接抛异常;
+                     
+                     delete context.next;
+                     delete context.params;
+                     delete context.urlPattern;
+                     
+                     newErr = new Error("Filter [" + handle + "] is not exists!");
+                     newErr.http_status = 404;
+                     throw newErr;
+                 }
              }
+             
          }
          
          if(typeof(handle) == "string"){
@@ -386,7 +415,7 @@ Router.prototype = {
     },
     __dispatchFilter:function(context,callback){
         var me = this;
-        
+        debugger;
         if(me.filters.length == 0){
             callback();
             return;

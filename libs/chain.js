@@ -159,7 +159,7 @@ Chain.prototype = _extend(Object.create(EventEmitter.prototype),{
     },
     destroy:function(){
         //console.log("destroy");
-        this.__execs.length = 0;
+        this.__execs.clean();
         this.removeAllListeners('error');
         this.removeAllListeners('finish');
         

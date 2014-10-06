@@ -17,6 +17,10 @@ var isArray = Array.isArray;
 
 var server = false , httpd = null , port , conf = {mapping:[], filter:[]} , appName = "";
 
+var expressApp = null;
+var expressMiddleware = false, reqProto = false, resProto = false;
+var nope = function(){};
+
 /**
  * httpserver的处理,不在router中,而是在router之上,
  * 直接在superAction中被拦截.用来减小router的复杂度.
@@ -56,8 +60,19 @@ var superActions = function (req, res) {
     }
     
     if(rootRoter){
-//        debugger;
+        
         context = new ActionVisitor(req,res,tplEngine);
+        
+        if(expressMiddleware){
+            req.app = res.app = expressApp;
+            req.res = res;
+            res.req = req;
+            req.__proto__ = reqProto;
+            res.__proto__ = resProto;
+            req.next = nope;
+        }
+        
+//        debugger;
         dispatch = context.domain.bind(rootRoter.dispatch);
         dispatch.call(rootRoter,context);
     }else{
@@ -168,6 +183,27 @@ httpd = _extend(new EventEmitter(),{
         	        	conf.loading_dir.forEach(function(dir){
         	        		rapid.requireDir(dir);
         	        	});
+	        }
+	        
+	        /**
+	         * 如果设置expressMiddleware,则启用express中间件的兼容. 
+	         * 可以将express的中间件做为filter使用.
+	         */
+	        if(expressMiddleware = !!conf.expressMiddleware){
+	            try{
+	                var express = require("express");
+	                expressApp = express();
+	                
+	                reqProto = express.request;
+	                resProto = express.response;
+	                
+	                //ActionVisitor.prototype.__proto__ = expressApp;
+	            }catch(e){
+	                expressMiddleware = false;
+	                log.warn("enable express middleware support, but can't require express");
+	            }finally{
+	                Router.prototype.expressMiddleware = expressMiddleware;
+	            }
 	        }
 	        
 	        port = conf.port || 8080;
