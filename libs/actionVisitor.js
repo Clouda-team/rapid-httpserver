@@ -162,8 +162,10 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 	 */
 	parseForm:function(cb){
 		var me = this;
-		var isPost = /^post$/i;
+		var isPost = /^post$/i, isUrlencodeForm = /^application\/x-www-form-urlencoded/;
 		var req = me.request;
+		var contentType = req.headers["content-type"] || "", 
+		    contentLen = req.headers["content-length"] || 0;
 		try{
 			if(this.__formParmas !== undefined){
 				cb.call(this,null,this.__formParams);
@@ -172,7 +174,7 @@ ActionVisitor.prototype = _extend(Object.create(EventEmitter.prototype),{
 			/**
 			 * 这里不需要对callbck做事件池的处理, 因为filter与action都是链式调用的,不存在多个filter或filter一起访问到parseForm的可能
 			 */
-			if(isPost.test(req.method) && req.headers["content-type"] == "application/x-www-form-urlencoded" && (contentLen = req.headers["content-length"]) > 0 ){
+			if(isPost.test(req.method) && isUrlencodeForm.test(contentType) && contentLen > 0 ){
 				//FIXME 暂时就是UTF8,爱咋咋地...留配置是以后的事情,暂时没时间..thanks!!!
 				req.on("readable" , function(){
 					
